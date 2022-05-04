@@ -1,17 +1,18 @@
-String.format = function() {
-      var s = arguments[0];
-      for (var i = 0; i < arguments.length - 1; i++) {       
-          var reg = new RegExp("\\{" + i + "\\}", "gm");             
-          s = s.replace(reg, arguments[i + 1]);
-      }
-      return s;
+String.format = function () {
+  var s = arguments[0];
+  for (var i = 0; i < arguments.length - 1; i++) {
+    var reg = new RegExp("\\{" + i + "\\}", "gm");
+    s = s.replace(reg, arguments[i + 1]);
   }
+  return s;
+}
 
-var firstQueryNations = `{
+var firstQueryNationsPlayers = `{
   nationalTeam(slug:"{0}"){
     players{
       nodes{
         slug
+        displayName
         position
         cardSupply{
           limited  
@@ -30,11 +31,35 @@ var firstQueryNations = `{
 }`;
 
 
-var otherQueryNations = `{
+var otherQueryNationsPlayers = `{
   nationalTeam(slug:"{0}"){
     players(after:"{1}"){
       nodes{
         slug
+        displayName
+        position
+        cardSupply{
+          limited  
+          season{
+            name
+          }
+        }
+      }
+      pageInfo{
+        endCursor
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}`;
+
+var firstQueryNationsActivePlayers = `{
+  nationalTeam(slug:"{0}"){
+    activePlayers{
+      nodes{
+        slug
+        displayName
         position
         cardSupply{
           limited  
@@ -53,33 +78,48 @@ var otherQueryNations = `{
 }`;
 
 
-function getParams(payloadContent){
-  return  {
+var otherQueryNationsActivePlayers = `{
+  nationalTeam(slug:"{0}"){
+    activePlayers(after:"{1}"){
+      nodes{
+        slug
+        displayName
+        position
+        cardSupply{
+          limited  
+          season{
+            name
+          }
+        }
+      }
+      pageInfo{
+        endCursor
+        hasNextPage
+        hasPreviousPage
+      }
+    }
+  }
+}`;
 
+function getParams(payloadContent) {
+  return {
     method: "POST",
-
     payload: payloadContent,
-
     headers: {
-
       "Content-Type": "application/json",
-
       "X-CSRF-Token": "",
-
-
-
     },
-
   };
 }
-
 
 function myFunctionTestCountries() {
 
   let url = "https://api.sorare.com/graphql";
 
+  var queriedNation = "france";
+
   let graphqlFirstQuery = JSON.stringify({
-    query: String.format(firstQueryNations, "france"),
+    query: String.format(firstQueryNationsActivePlayers, queriedNation),
     variables: null,
   });
 
@@ -87,36 +127,70 @@ function myFunctionTestCountries() {
 
   var lists = JSON.parse((response.getContentText()));
   var nationalTeamData = lists.data.nationalTeam;
-  var playersList = nationalTeamData.players.nodes;
+  var playersList = nationalTeamData.activePlayers.nodes;
 
-  playersList.forEach(function(item, index, array){
-    console.log("TEST: " + item.slug);
+  playersList.forEach(function (item, index, array) {
+
+    let cardSupply = item.cardSupply;
+    if (cardSupply.length == 0)
+      return;
+
+    let hasCard = false;
+    for (let idx = 0; idx < cardSupply.length; idx++) {
+      if (cardSupply[idx].limited > 0) {
+        hasCard = true;
+        break;
+      }
+
+    }
+    if (hasCard) {
+      console.log(item.displayName)
+      if (item.position == "Goalkeeper")
+        console.log("GK")
+
+    }
   })
 
-  var endCursor = nationalTeamData.players.pageInfo.endCursor
-  var hasNextItems = nationalTeamData.players.pageInfo.hasNextPage
-  while(hasNextItems){
+  var endCursor
+  var hasNextItems = nationalTeamData.activePlayers.pageInfo.hasNextPage
+  while (hasNextItems) {
 
-      let graphQlSecondQuery = JSON.stringify({
-    query: String.format(otherQueryNations, "france", endCursor),
-    variables: null,
-  });
+    endCursor = nationalTeamData.activePlayers.pageInfo.endCursor
 
-  console.log(url)
-  console.log(graphQlSecondQuery);
-  response = UrlFetchApp.fetch(url, getParams(graphQlSecondQuery));
+    let graphQlSecondQuery = JSON.stringify({
+      query: String.format(otherQueryNationsActivePlayers, queriedNation, endCursor),
+      variables: null,
+    });
 
-  lists = JSON.parse((response.getContentText()));
-  nationalTeamData = lists.data.nationalTeam;
-  playersList = nationalTeamData.players.nodes;
+    response = UrlFetchApp.fetch(url, getParams(graphQlSecondQuery));
 
-  playersList.forEach(function(item, index, array){
-    console.log("TEST: " + item.slug);
-  })
+    lists = JSON.parse((response.getContentText()));
+    nationalTeamData = lists.data.nationalTeam;
+    playersList = nationalTeamData.activePlayers.nodes;
 
-  endCursor = nationalTeamData.players.pageInfo.endCursor
-  hasNextItems = nationalTeamData.players.pageInfo.hasNextPage
+    playersList.forEach(function (item, index, array) {
+
+      let cardSupply = item.cardSupply;
+      if (cardSupply.length == 0)
+        return;
+
+      let hasCard = false;
+      for (let idx = 0; idx < cardSupply.length; idx++) {
+        if (cardSupply[idx].limited > 0) {
+          hasCard = true;
+          break;
+        }
+
+      }
+      if (hasCard) {
+        console.log(item.displayName)
+        if (item.position == "Goalkeeper")
+          console.log("GK")
+      }
+
+    })
+
+    hasNextItems = nationalTeamData.activePlayers.pageInfo.hasNextPage
 
   }
-
 }
